@@ -1,0 +1,75 @@
+---
+title: "Add noise"
+output: html_document
+date: "2023-03-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The purpose of this markdown is to add noisy dimensions to a CyTOF dataset and see what that does to the dimension reduction algorithms.
+
+```{r}
+library(tidyverse)
+library(here)
+library(flowCore)
+setwd(here::here('data', 'marie_cytof'))
+set.seed(1)
+
+# Read in the cells
+cells <- flowCore::read.FCS(list.files(pattern = "SLE")) # Data from Marie Burns
+params <- as.vector(Biobase::pData(parameters(cells))$desc)
+colnames(cells) <- params
+cells <- exprs(cells) 
+cells <- cells[, grepl("CD", colnames(cells))] # A shortcut to get to the surface markers we care about
+cells <- asinh(cells/5) %>% as_tibble()
+cells <- cells[sample(nrow(cells), 1000),]
+cells
+```
+
+```{r}
+noise <- rnorm(n = nrow(cells), mean = 3, sd = 1.5)
+noise <- ifelse(noise < 0, 0, noise)
+hist(noise, breaks = 100)
+hist(cells$`140Ce_CD14`, breaks = 100)
+```
+
+```{r}
+AddNoise <- function(len) {
+    noise <- rnorm(n = len, mean = 3, sd = 1.5)
+    noise <- ifelse(noise < 0, 0, noise)
+    return(noise)
+}
+```
+
+
+```{r}
+library(umap)
+library(Rtsne)
+setwd(here::here("output"))
+
+
+num_times <- 100
+curr <- cells
+umap_list <- lapply(seq(num_times), function(i) {
+    curr <<- bind_cols(curr, noise = AddNoise(nrow(curr)))
+    print(ncol(curr))
+    result <- umap::umap(curr, preserve.seed = FALSE)$layout %>% as_tibble()
+    names(result) <- c("umap1", "umap2")
+    return(result)
+})
+saveRDS(umap_list, "umap_list.Rds")
+
+curr <- cells
+tsne_list <- lapply(seq(num_times), function(i) {
+    curr <<- bind_cols(curr, noise = AddNoise(nrow(curr)))
+    print(ncol(curr))
+    result <- Rtsne::Rtsne(X = curr)$Y %>% as_tibble()
+    names(result) <- c("tsne1", "tsne2")
+    return(result)
+})
+saveRDS(tsne_list, "tsne_list.Rds")
+```
+
+

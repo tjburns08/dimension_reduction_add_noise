@@ -1,0 +1,94 @@
+---
+title: "make plots"
+output: html_document
+date: "2023-03-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The pupose of this markdown is to make the plots, but fix the coordinates.
+
+```{r}
+library(tidyverse)
+library(here)
+library(magick)
+library(gtools)
+setwd(here::here("output"))
+
+tsne_list <- readr::read_rds('tsne_list.rds')
+umap_list <- readr::read_rds('umap_list.rds')
+```
+```{r}
+count <- 0
+for(i in tsne_list) {
+    count <- count + 1
+    p <- ggplot(i, aes(x = tsne1, y = tsne2)) + 
+        geom_point() + 
+        xlim(-30, 30) + 
+        ylim(-30, 30) + 
+        ggtitle(paste(count, "noise dimensions")) + 
+        theme(text = element_text(size = 20)) 
+    outfile <- paste0('plot', count)
+    setwd(here::here("output", "tsne_plots"))
+    ggsave(plot = p, filename = outfile, device = "png")
+}
+```
+
+```{r}
+count <- 0
+for(i in umap_list) {
+    count <- count + 1
+    p <- ggplot(i, aes(x = umap1, y = umap2)) + 
+        geom_point() + 
+        xlim(-12, 12) + 
+        ylim(-12, 12) + 
+        ggtitle(paste(count, "noise dimensions")) + 
+        theme(text = element_text(size = 20)) 
+    outfile <- paste0('plot', count)
+    setwd(here::here("output", "umap_plots"))
+    ggsave(plot = p, filename = outfile, device = "png")
+}
+```
+
+
+```{r}
+MakeGif <- function(in_dir, outfile, frames_per_second = 10, first_n = 100) {
+    ## list file names and read in
+    imgs <- list.files(in_dir, full.names = TRUE) %>% gtools::mixedsort()
+    imgs <- imgs[1:first_n]
+    img_list <- lapply(imgs, image_read)
+
+    ## join the images together
+    img_joined <- image_join(img_list)
+
+    ## animate at 2 frames per second
+    img_animated <- image_animate(img_joined, fps = frames_per_second)
+
+    ## save to disk
+    image_write(image = img_animated,
+            path = outfile)
+}
+```
+
+```{r}
+setwd(here::here("output", "gifs"))
+
+# Fast
+MakeGif(in_dir = here::here("output", "tsne_plots"), 
+        outfile = "tsne.gif")
+MakeGif(in_dir = here::here("output", "umap_plots"), 
+        outfile = "umap.gif")
+
+# Slow
+MakeGif(in_dir = here::here("output", "tsne_plots"), 
+        outfile = "tsne_slow.gif", 
+        first_n = 50,
+        frames_per_second = 5)
+MakeGif(in_dir = here::here("output", "umap_plots"), 
+        outfile = "umap_slow.gif", 
+        first_n = 50,
+        frames_per_second = 5)
+```
+

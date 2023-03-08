@@ -1,0 +1,54 @@
+---
+title: "Convex hull"
+output: html_document
+date: "2023-03-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The following code imports the list of dimension reductions created in add_noise.Rmd and calculates the convex hull for each one. 
+
+```{r}
+library(tidyverse)
+library(here)
+library(magick)
+library(gtools)
+setwd(here::here("output"))
+
+tsne_list <- readr::read_rds('tsne_list.rds')
+umap_list <- readr::read_rds('umap_list.rds')
+```
+A test.
+
+```{r}
+library(grDevices)
+library(rgl)
+library(geometry)
+
+tsne_map <- tsne_list[[1]]
+ch <- chull(tsne_map[[1]], tsne_map[[2]])
+ch_area <- polyarea(tsne_map[ch,][[1]], tsne_map[ch,][[2]])
+ch_area
+plot(tsne_map[ch,])
+plot(tsne_map)
+```
+
+This will do. Now let's get to work.
+
+```{r}
+tsne_ch <- lapply(tsne_list, function(i) {
+    ch <- chull(i[[1]], i[[2]])
+    ch_area <- polyarea(i[ch,][[1]], i[ch,][[2]])
+}) %>% unlist()
+
+umap_ch <- lapply(umap_list, function(i) {
+    ch <- chull(i[[1]], i[[2]])
+    ch_area <- polyarea(i[ch,][[1]], i[ch,][[2]])
+}) %>% unlist()
+
+plot(tsne_ch)
+plot(umap_ch)
+```
+

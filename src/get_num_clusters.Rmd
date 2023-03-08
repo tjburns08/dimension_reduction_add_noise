@@ -1,0 +1,129 @@
+---
+title: "Get number of clusters"
+output: html_document
+date: "2023-03-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This markdown is going to give us the number of clusters on a given t-SNE of UMAP. We just want to quantify the number of islands.
+
+We'll start with dbscan. 
+
+```{r}
+library(tidyverse)
+library(here)
+library(magick)
+library(gtools)
+setwd(here::here("output"))
+
+tsne_list <- readr::read_rds('tsne_list.rds')
+umap_list <- readr::read_rds('umap_list.rds')
+```
+
+First a test.
+
+```{r}
+library(dbscan)
+
+test_tsne <- tsne_list[[1]]
+clust <- dbscan::dbscan(x = test_tsne, eps = 1.5)
+
+qplot(test_tsne[[1]], test_tsne[[2]], color = as.factor(clust$cluster))
+```
+This will do for now. Let's get to work. 
+
+```{r}
+setwd(here::here("output", "dbscan", "tsne"))
+count <- 0
+tsne_clust <- lapply(tsne_list, function(i) {
+    count <<- count + 1
+    clust <- dbscan::dbscan(x = i, eps = 1.5)
+    p <- qplot(i[[1]], 
+               i[[2]], 
+               color = as.factor(clust$cluster))
+    ggsave(paste0("tsne", count, ".png"))
+    return(clust$cluster %>% unique() %>% length())
+}) %>% unlist()
+
+setwd(here::here("output", "dbscan", "umap"))
+count <- 0
+umap_clust <- lapply(umap_list, function(i) {
+    count <<- count + 1
+    clust <- dbscan::dbscan(x = i, eps = 1.5)
+    p <- qplot(i[[1]], 
+               i[[2]], 
+               color = as.factor(clust$cluster))
+    ggsave(paste0("tsne", count, ".png"))
+    return(clust$cluster %>% unique() %>% length())
+}) %>% unlist()
+
+plot(tsne_clust)
+plot(umap_clust)
+```
+
+Ok, and now we do the same but with the convex hull per cluster. First we test.
+
+```{r}
+library(grDevices)
+library(rgl)
+library(geometry)
+
+test_tsne <- tsne_list[[1]]
+clust <- dbscan::dbscan(x = test_tsne, eps = 2)
+hull <- lapply(unique(clust$cluster), function(i) {
+    curr <- filter(test_tsne, clust$cluster == i)
+    if(nrow(curr) < 10) {
+        return(0)
+    }
+    ch <- chull(curr[[1]], curr[[2]])
+    plot(curr[ch,], main = i)
+    plot(curr, main = i)
+    ch_area <- polyarea(curr[ch,][[1]], curr[ch,][[2]])
+    return(ch_area)
+}) %>% unlist() 
+
+# Should scale with the number of cells per cluster
+table(clust$cluster)
+
+names(hull) <- unique(clust$cluster)
+hull
+```
+
+```{r}
+GetHull <- function(clusters, dimr) {
+  result <- lapply(unique(clusters$cluster), function(i) {
+    curr <- filter(dimr, clust$cluster == i)
+    if(nrow(curr) < 10) {
+        return(0)
+    }
+    ch <- chull(curr[[1]], curr[[2]])
+    ch_area <- polyarea(curr[ch,][[1]], curr[ch,][[2]])
+    return(ch_area)
+  }) %>% unlist() %>% sum()
+}
+```
+
+
+```{r}
+tsne_clust_hull <- lapply(tsne_list, function(i) {
+    count <<- count + 1
+    clust <- dbscan::dbscan(x = i, eps = 1.5)
+    result <- GetHull(clust, i)
+    return(result)
+}) %>% unlist()
+
+
+umap_clust_hull <- lapply(umap_list, function(i) {
+    count <<- count + 1
+    clust <- dbscan::dbscan(x = i, eps = 1.5)
+    result <- GetHull(clust, i)
+    return(result)
+}) %>% unlist()
+
+plot(tsne_clust_hull)
+plot(umap_clust_hull)
+```
+
